@@ -1,2 +1,13 @@
 config:
   aws:region: us-east-1
+  pulumi-aws-psql:dbName: myappdb
+  pulumi-aws-psql:dbUsername: dbadmin
+  pulumi-aws-psql:dbPort: 5432
+  pulumi-aws-psql:allocatedStorage: 20
+  pulumi-aws-psql:maxAllocatedStorage: 100
+  pulumi-aws-psql:instanceClass: db.t3.micro
+  pulumi-aws-psql:backupRetentionPeriod: 7
+  pulumi-aws-psql:multiAz: false
+  pulumi-aws-psql:publiclyAccessible: false
+  pulumi-aws-psql:keyPairName: your-key-pair-name
+  pulumi-aws-psql:sqlBackupPath: ./backup.sql
