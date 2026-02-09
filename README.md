@@ -22,20 +22,17 @@ A comprehensive Pulumi template for provisioning a production-ready PostgreSQL d
 
 ## Getting Started
 
-### 1. Initialize the Project
+### 1. Clone the Project
 
 ```bash
-mkdir pulumi-aws-psql
-cd pulumi-aws-psql
-pulumi new aws-typescript
+git clone https://github.com/raghavendramallela/pulumi-aws-psql-sample.git
+cd pulumi-aws-psql-sample
 ```
-
-Follow the prompts to set your project name, description, and AWS region.
 
 ### 2. Install Dependencies
 
 ```bash
-npm install @pulumi/aws @pulumi/awsx @pulumi/random
+npm install
 ```
 
 ### 3. Create EC2 Key Pair
@@ -47,7 +44,7 @@ aws ec2 create-key-pair --key-name psql-bastion-key --query 'KeyMaterial' --outp
 chmod 400 psql-bastion-key.pem
 ```
 
-### 4. Configure Your Stack
+### 4. Configure Your Stack (optional)
 
 Edit `Pulumi.dev.yaml` or use the CLI to set configuration values:
 
@@ -286,7 +283,7 @@ pulumi stack rm dev
 - Set up VPC peering for application connectivity
 - Configure AWS Backup for centralized backup management
 
-## Getting Help
+## Documentation Help
 
 - Pulumi Documentation: https://www.pulumi.com/docs/
 - AWS RDS Documentation: https://docs.aws.amazon.com/rds/
