@@ -1,0 +1,16 @@
+ask_question("How do i Create RDS PostgreSQL instance?",vector_store,qa_bot)
+
+======================================================================
+❓ QUERY: How do i Create RDS PostgreSQL instance?
+======================================================================
+
+📚 Found 5 relevant chunks:
+  1. index.ts (chunk_195) (lines 196-275) [score: 0.853]
+  2. index.ts (chunk_130) (lines 131-210) [score: 0.786]
+  3. index.ts (chunk_65) (lines 66-145) [score: 0.740]
+
+🤖 ANSWER:
+
+The `aws.rd.
+
+The `aws.rd.
