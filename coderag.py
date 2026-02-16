@@ -520,7 +520,7 @@ class CodeQABot:
     
     Uses 4-bit quantization to reduce memory usage (14B model -> ~8GB RAM)
     """
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-32B-Instruct", use_multi_gpu: bool = True):
+    def __init__(self, model_name: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct", use_multi_gpu: bool = True):
         """
         Initialize with a code-specialized LLM
         
@@ -534,7 +534,7 @@ class CodeQABot:
         Recommended models for your setup (GPU-only):
         - Qwen/Qwen2.5-Coder-14B-Instruct (~8GB VRAM with 4-bit) ✓ Fits easily
         - Qwen/Qwen2.5-Coder-32B-Instruct (~18GB VRAM with 4-bit) ✓ Should fit
-        - Qwen/Qwen3-Coder-30B-A3B-Instruct (~35GB VRAM with 4-bit) ✗ Too large
+        - Qwen/Qwen3-Coder-30B-A3B-Instruct (~18-20GB VRAM with 4-bit) ✓ Should fit (tight)
         
         Args:
             model_name: Hugging Face model identifier
@@ -784,7 +784,7 @@ def main():
     # Step 4: Load LLM
     print("\n[4/5] 🧠 Loading LLM...")
     # LLM will be distributed across both GPUs automatically
-    qa_bot = CodeQABot(use_multi_gpu=True)  # Uses Qwen2.5-Coder-14B by default
+    qa_bot = CodeQABot(use_multi_gpu=True)  # Uses Qwen3-Coder-30B-A3B by default
 
     # Step 5: Interactive Q&A
     print("\n[5/5] ✅ System ready!")
