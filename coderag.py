@@ -48,6 +48,14 @@ print(f"PyTorch version: {torch.__version__}")
 if torch.__version__ < "2.1.0":
     print("⚠️  Warning: PyTorch 2.3+ recommended for transformers v5.0")
 
+# Check available GPUs
+if torch.cuda.is_available():
+    gpu_count = torch.cuda.device_count()
+    print(f"\n🎮 Detected {gpu_count} GPU(s):")
+    for i in range(gpu_count):
+        print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
+    print()
+
 
 class GitRepoIngestion:
     """
@@ -394,7 +402,7 @@ class CodeVectorStore:
     3. FAISS finds nearest neighbors efficiently (even with millions of vectors)
     """
 
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", device: str = "cuda:0"):
         """
         Initialize with an embedding model
         
@@ -407,15 +415,17 @@ class CodeVectorStore:
         
         Args:
             model_name: Hugging Face model identifier
+            device: Device to run embedding model on (default: cuda:0 - first GPU)
         """
-        print(f"Loading embedding model: {model_name}...")
+        print(f"Loading embedding model: {model_name} on {device}...")
         self.embedding_model = SentenceTransformer(
             model_name,
-            trust_remote_code=True  # Required for some newer models
+            trust_remote_code=True,  # Required for some newer models
+            device=device  # Place embedding model on first GPU
         )
         self.chunks = []  # Store original chunks for retrieval
         self.index = None  # FAISS index (created later)
-        print(f"✓ Embedding model loaded (dim: {self.embedding_model.get_sentence_embedding_dimension()})")
+        print(f"✓ Embedding model loaded on {device} (dim: {self.embedding_model.get_sentence_embedding_dimension()})")
 
     def embed_chunks(self, chunks: List[Dict[str, Any]]):
         """
@@ -511,18 +521,26 @@ class CodeQABot:
     Uses 4-bit quantization to reduce memory usage (14B model -> ~8GB RAM)
     """
 
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct"):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct", use_multi_gpu: bool = True):
         """
         Initialize with a code-specialized LLM
         
         Qwen2.5-Coder is trained specifically on code and technical content.
         We use 4-bit quantization to fit a 14B parameter model in consumer GPUs.
         
+        With multi-GPU setup:
+        - Embedding model runs on GPU 0 (RTX 4080)
+        - LLM is distributed across GPU 0 and GPU 1 (RTX 4080 + 5080)
+        
         Args:
             model_name: Hugging Face model identifier
+            use_multi_gpu: Whether to distribute model across multiple GPUs
         """
         print(f"Loading LLM: {model_name}...")
-
+        
+        # Check available GPUs
+        gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+        
         # Configure 4-bit quantization to reduce memory usage
         # This compresses the model from 16-bit to 4-bit precision
         quantization_config = BitsAndBytesConfig(
@@ -538,13 +556,31 @@ class CodeQABot:
             trust_remote_code=True  # Required for some models
         )
 
-        # Load the actual LLM with quantization
+        # Configure device mapping for multi-GPU setup
+        if use_multi_gpu and gpu_count >= 2:
+            # Custom device map to distribute model across both GPUs
+            # This splits the model layers between GPU 0 and GPU 1
+            print(f"  Distributing model across {gpu_count} GPUs...")
+            device_map = "auto"  # Let accelerate handle optimal distribution
+            max_memory = {
+                0: "10GB",  # Reserve some memory on GPU 0 for embedding model
+                1: "15GB"   # GPU 1 can use more memory for LLM layers
+            }
+        else:
+            print(f"  Using single GPU mode...")
+            device_map = "auto"
+            max_memory = None
+
+        # Load the actual LLM with quantization and multi-GPU support
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             quantization_config=quantization_config,
-            device_map="auto",  # Automatically distribute across available GPUs
+            device_map=device_map,  # Distribute across GPUs
+            max_memory=max_memory,  # Memory limits per GPU
             trust_remote_code=True,
-            torch_dtype=torch.float16  # Use half precision
+            torch_dtype=torch.float16,  # Use half precision
+            offload_folder="offload",  # Folder for CPU offloading if needed
+            offload_state_dict=True  # Enable state dict offloading
         )
 
         # Set padding token if not defined
@@ -552,7 +588,22 @@ class CodeQABot:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         print(f"✓ LLM loaded (4-bit quantized, {model_name})")
-        print(f"  Memory footprint: ~{torch.cuda.memory_allocated() / 1024**3:.1f}GB")
+        
+        # Show memory usage per GPU
+        if torch.cuda.is_available():
+            for i in range(gpu_count):
+                mem_allocated = torch.cuda.memory_allocated(i) / 1024**3
+                mem_reserved = torch.cuda.memory_reserved(i) / 1024**3
+                print(f"  GPU {i} ({torch.cuda.get_device_name(i)}): {mem_allocated:.1f}GB allocated, {mem_reserved:.1f}GB reserved")
+        
+        # Print device map to show layer distribution
+        if hasattr(self.model, 'hf_device_map'):
+            print(f"\n  Model layer distribution:")
+            device_summary = {}
+            for layer, device in self.model.hf_device_map.items():
+                device_summary[device] = device_summary.get(device, 0) + 1
+            for device, count in sorted(device_summary.items()):
+                print(f"    {device}: {count} layers")
 
     def generate_answer(self, query: str, context_chunks: List[Dict]) -> str:
         """
@@ -667,12 +718,15 @@ def main():
     print("="*70)
     print("🤖 LLM CODE Q&A BOT - RAG DEMO (Updated Jan 2026)")
     print("="*70)
-    print(f"Models: BGE-small-en-v1.5 + Qwen2.5-Coder-3B")
+    print(f"Models: BGE-small-en-v1.5 + Qwen2.5-Coder-14B")
     print(f"Python: {sys.version_info.major}.{sys.version_info.minor}")
     print(f"PyTorch: {torch.__version__}")
     print(f"CUDA Available: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        gpu_count = torch.cuda.device_count()
+        print(f"GPUs Available: {gpu_count}")
+        for i in range(gpu_count):
+            print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
     print("="*70)
 
     # Step 1: Clone and ingest repository
@@ -696,12 +750,14 @@ def main():
 
     # Step 3: Create embeddings and vector store
     print("\n[3/5] 🧮 Creating vector store...")
-    vector_store = CodeVectorStore()  # Uses BGE-small by default
+    # Place embedding model on GPU 0 (RTX 4080)
+    vector_store = CodeVectorStore(device="cuda:0")  # Uses BGE-small by default
     vector_store.embed_chunks(chunks)
 
     # Step 4: Load LLM
     print("\n[4/5] 🧠 Loading LLM...")
-    qa_bot = CodeQABot()  # Uses Qwen2.5-Coder-3B by default
+    # LLM will be distributed across both GPUs automatically
+    qa_bot = CodeQABot(use_multi_gpu=True)  # Uses Qwen2.5-Coder-14B by default
 
     # Step 5: Interactive Q&A
     print("\n[5/5] ✅ System ready!")
