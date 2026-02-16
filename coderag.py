@@ -520,17 +520,21 @@ class CodeQABot:
     
     Uses 4-bit quantization to reduce memory usage (14B model -> ~8GB RAM)
     """
-
-    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct", use_multi_gpu: bool = True):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-32B-Instruct", use_multi_gpu: bool = True):
         """
         Initialize with a code-specialized LLM
         
         Qwen2.5-Coder is trained specifically on code and technical content.
-        We use 4-bit quantization to fit a 14B parameter model in consumer GPUs.
+        We use 4-bit quantization to fit large models in GPU memory.
         
-        With multi-GPU setup:
+        With multi-GPU setup (GPU-only, no CPU offloading):
         - Embedding model runs on GPU 0 (RTX 4080)
         - LLM is distributed across GPU 0 and GPU 1 (RTX 4080 + 5080)
+        
+        Recommended models for your setup (GPU-only):
+        - Qwen/Qwen2.5-Coder-14B-Instruct (~8GB VRAM with 4-bit) ✓ Fits easily
+        - Qwen/Qwen2.5-Coder-32B-Instruct (~18GB VRAM with 4-bit) ✓ Should fit
+        - Qwen/Qwen3-Coder-30B-A3B-Instruct (~35GB VRAM with 4-bit) ✗ Too large
         
         Args:
             model_name: Hugging Face model identifier
@@ -541,8 +545,12 @@ class CodeQABot:
         # Check available GPUs
         gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
         
+        if gpu_count < 2 and use_multi_gpu:
+            print(f"  Warning: Only {gpu_count} GPU(s) available, using single GPU mode")
+            use_multi_gpu = False
+        
         # Configure 4-bit quantization to reduce memory usage
-        # This compresses the model from 16-bit to 4-bit precision
+        # This compresses the model from 16-bit to 4-bit precision (~75% memory reduction)
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,  # Use 4-bit quantization
             bnb_4bit_compute_dtype=torch.float16,  # Compute in float16
@@ -556,32 +564,48 @@ class CodeQABot:
             trust_remote_code=True  # Required for some models
         )
 
-        # Configure device mapping for multi-GPU setup
+        # Configure device mapping for multi-GPU setup (GPU-only, no CPU offloading)
         if use_multi_gpu and gpu_count >= 2:
-            # Custom device map to distribute model across both GPUs
-            # This splits the model layers between GPU 0 and GPU 1
-            print(f"  Distributing model across {gpu_count} GPUs...")
-            device_map = "auto"  # Let accelerate handle optimal distribution
+            print(f"  Distributing model across {gpu_count} GPUs (GPU-only mode)...")
+            
+            # Calculate available memory per GPU
+            # RTX 4080 Super: 16GB total, RTX 5080: 16GB total
+            # Reserve memory for embedding model on GPU 0
             max_memory = {
-                0: "10GB",  # Reserve some memory on GPU 0 for embedding model
-                1: "15GB"   # GPU 1 can use more memory for LLM layers
+                0: "13GB",  # GPU 0: Reserve 3GB for embedding model + overhead
+                1: "15GB"   # GPU 1: Almost all memory available for LLM
+                # No CPU entry = no CPU offloading
             }
+            
+            print(f"  Memory allocation: GPU 0: 13GB, GPU 1: 15GB (Total: 28GB for LLM)")
         else:
             print(f"  Using single GPU mode...")
-            device_map = "auto"
             max_memory = None
 
         # Load the actual LLM with quantization and multi-GPU support
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=quantization_config,
-            device_map=device_map,  # Distribute across GPUs
-            max_memory=max_memory,  # Memory limits per GPU
-            trust_remote_code=True,
-            torch_dtype=torch.float16,  # Use half precision
-            offload_folder="offload",  # Folder for CPU offloading if needed
-            offload_state_dict=True  # Enable state dict offloading
-        )
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config=quantization_config,
+                device_map="auto",  # Distribute across GPUs automatically
+                max_memory=max_memory,  # Memory limits per GPU (GPU-only)
+                trust_remote_code=True,
+                torch_dtype=torch.float16,  # Use half precision
+                low_cpu_mem_usage=True  # Reduce CPU memory during loading
+            )
+        except ValueError as e:
+            if "CPU or the disk" in str(e):
+                print(f"\n  ❌ Error: Model too large for available GPU memory!")
+                print(f"  The model requires more than the available ~28GB GPU memory.")
+                print(f"\n  Solutions:")
+                print(f"  1. Use a smaller model (recommended):")
+                print(f"     - Qwen/Qwen2.5-Coder-14B-Instruct (~8GB)")
+                print(f"     - Qwen/Qwen2.5-Coder-32B-Instruct (~18GB)")
+                print(f"  2. Use 8-bit quantization instead of 4-bit (requires more VRAM)")
+                print(f"  3. Enable CPU offloading (slower, but works)")
+                raise
+            else:
+                raise
 
         # Set padding token if not defined
         if self.tokenizer.pad_token is None:
@@ -591,10 +615,13 @@ class CodeQABot:
         
         # Show memory usage per GPU
         if torch.cuda.is_available():
+            total_allocated = 0
             for i in range(gpu_count):
                 mem_allocated = torch.cuda.memory_allocated(i) / 1024**3
                 mem_reserved = torch.cuda.memory_reserved(i) / 1024**3
+                total_allocated += mem_allocated
                 print(f"  GPU {i} ({torch.cuda.get_device_name(i)}): {mem_allocated:.1f}GB allocated, {mem_reserved:.1f}GB reserved")
+            print(f"  Total GPU memory used: {total_allocated:.1f}GB")
         
         # Print device map to show layer distribution
         if hasattr(self.model, 'hf_device_map'):
