@@ -1,0 +1,73 @@
+$ uv run coderag.py 
+PyTorch version: 2.10.0+cu128
+
+🎮 Detected 2 GPU(s):
+  GPU 0: NVIDIA GeForce RTX 4080 SUPER
+  GPU 1: NVIDIA GeForce RTX 5080
+
+======================================================================
+🤖 LLM CODE Q&A BOT - RAG DEMO (Updated Jan 2026)
+======================================================================
+Models: BGE-small-en-v1.5 + Qwen2.5-Coder-14B
+Python: 3.12
+PyTorch: 2.10.0+cu128
+CUDA Available: True
+GPUs Available: 2
+  GPU 0: NVIDIA GeForce RTX 4080 SUPER
+  GPU 1: NVIDIA GeForce RTX 5080
+======================================================================
+
+[1/5] 📥 Cloning repository...
+Repository already exists at ./repo
+✓ Found 7 code files
+
+[2/5] 🔍 Parsing and chunking code...
+Parser not available for json: __init__() takes exactly 1 argument (2 given)
+Parser not available for md: __init__() takes exactly 1 argument (2 given)
+Parser not available for yaml: __init__() takes exactly 1 argument (2 given)
+Parser not available for json: __init__() takes exactly 1 argument (2 given)
+Parser not available for json: __init__() takes exactly 1 argument (2 given)
+Parser not available for yaml: __init__() takes exactly 1 argument (2 given)
+Parser not available for typescript: __init__() takes exactly 1 argument (2 given)
+✓ Created 81 code chunks
+
+[3/5] 🧮 Creating vector store...
+Loading embedding model: BAAI/bge-small-en-v1.5 on cuda:0...
+Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 199/199 [00:00<00:00, 5160.77it/s, Materializing param=pooler.dense.weight]
+BertModel LOAD REPORT from: BAAI/bge-small-en-v1.5
+Key                     | Status     | Details
+------------------------+------------+--------
+embeddings.position_ids | UNEXPECTED |        
+
+Notes:
+- UNEXPECTED    :can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+✓ Embedding model loaded on cuda:0 (dim: 384)
+Generating embeddings for 81 chunks...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  8.19it/s]
+✓ Vector store created with 81 embeddings
+
+[4/5] 🧠 Loading LLM...
+Loading LLM: Qwen/Qwen3-Coder-30B-A3B-Instruct...
+  Distributing model across 2 GPUs...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Traceback (most recent call last):
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 869, in <module>
+    vector_store, qa_bot = main()
+                           ^^^^^^
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 761, in main
+    qa_bot = CodeQABot(use_multi_gpu=True)  # Uses Qwen2.5-Coder-14B by default
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 576, in __init__
+    self.model = AutoModelForCausalLM.from_pretrained(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/.venv/lib/python3.12/site-packages/transformers/models/auto/auto_factory.py", line 372, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py", line 4091, in from_pretrained
+    device_map = _get_device_map(model, device_map, max_memory, hf_quantizer)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/.venv/lib/python3.12/site-packages/transformers/integrations/accelerate.py", line 323, in _get_device_map
+    hf_quantizer.validate_environment(device_map=device_map)
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/.venv/lib/python3.12/site-packages/transformers/quantizers/quantizer_bnb_4bit.py", line 72, in validate_environment
+    raise ValueError(
+ValueError: Some modules are dispatched on the CPU or the disk. Make sure you have enough GPU RAM to fit the quantized model. If you want to dispatch the model on the CPU or the disk while keeping these modules in 32-bit, you need to set `llm_int8_enable_fp32_cpu_offload=True` and pass a custom `device_map` to `from_pretrained`. Check https://huggingface.co/docs/transformers/main/en/main_classes/quantization#offload-between-cpu-and-gpu for more details. 
