@@ -33,7 +33,7 @@ Parser not available for typescript: __init__() takes exactly 1 argument (2 give
 
 [3/5] 🧮 Creating vector store...
 Loading embedding model: BAAI/bge-small-en-v1.5 on cuda:0...
-Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 199/199 [00:00<00:00, 5160.77it/s, Materializing param=pooler.dense.weight]
+Loading weights: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 199/199 [00:00<00:00, 4880.38it/s, Materializing param=pooler.dense.weight]
 BertModel LOAD REPORT from: BAAI/bge-small-en-v1.5
 Key                     | Status     | Details
 ------------------------+------------+--------
@@ -43,21 +43,31 @@ Notes:
 - UNEXPECTED    :can be ignored when loading from different task/architecture; not ok if you expect identical arch.
 ✓ Embedding model loaded on cuda:0 (dim: 384)
 Generating embeddings for 81 chunks...
-Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  8.19it/s]
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  8.23it/s]
 ✓ Vector store created with 81 embeddings
 
 [4/5] 🧠 Loading LLM...
 Loading LLM: Qwen/Qwen3-Coder-30B-A3B-Instruct...
-  Distributing model across 2 GPUs...
+  Distributing model across 2 GPUs (GPU-only mode)...
+  Memory allocation: GPU 0: 13GB, GPU 1: 15GB (Total: 28GB for LLM)
 `torch_dtype` is deprecated! Use `dtype` instead!
+
+  ❌ Error: Model too large for available GPU memory!
+  The model requires more than the available ~28GB GPU memory.
+
+  Solutions:
+  1. Use a smaller model (recommended):
+     - Qwen/Qwen2.5-Coder-14B-Instruct (~8GB)
+  2. Use 8-bit quantization instead of 4-bit (requires more VRAM)
+  3. Enable CPU offloading (slower, but works)
 Traceback (most recent call last):
-  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 869, in <module>
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 896, in <module>
     vector_store, qa_bot = main()
                            ^^^^^^
-  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 761, in main
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 788, in main
     qa_bot = CodeQABot(use_multi_gpu=True)  # Uses Qwen2.5-Coder-14B by default
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 576, in __init__
+  File "/home/raghu/Documents/pulumi-aws-psql-sample/coderag.py", line 588, in __init__
     self.model = AutoModelForCausalLM.from_pretrained(
                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/raghu/Documents/pulumi-aws-psql-sample/.venv/lib/python3.12/site-packages/transformers/models/auto/auto_factory.py", line 372, in from_pretrained
